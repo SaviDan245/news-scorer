@@ -5,3 +5,4 @@ onnx
 onnxruntime
 numpy
 torch
+torchvision
