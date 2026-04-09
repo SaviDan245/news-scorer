@@ -1,0 +1,8 @@
+transformers
+gradio
+fastapi
+uvicorn
+safetensors
+onnx
+onnxruntime
+optimum

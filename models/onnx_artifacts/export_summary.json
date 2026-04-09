@@ -1,0 +1,112 @@
+{
+  "models": {
+    "sentiment": {
+      "input_names": [
+        "input_ids",
+        "attention_mask",
+        "token_type_ids"
+      ],
+      "id2label": {
+        "0": "negative",
+        "1": "neutral",
+        "2": "positive"
+      }
+    },
+    "actionability": {
+      "input_names": [
+        "input_ids",
+        "attention_mask",
+        "token_type_ids"
+      ],
+      "id2label": {
+        "0": "non_actionable",
+        "1": "actionable"
+      }
+    },
+    "event_type": {
+      "input_names": [
+        "input_ids",
+        "attention_mask",
+        "token_type_ids"
+      ],
+      "id2label": {
+        "0": "earnings_guidance",
+        "1": "corporate_action_mna",
+        "2": "management_change",
+        "3": "legal_regulatory",
+        "4": "financing_restructuring",
+        "5": "other_actionable"
+      }
+    }
+  },
+  "validation": {
+    "sentiment": [
+      {
+        "text": "Company cuts full-year guidance amid weak demand",
+        "torch_label": "negative",
+        "onnx_label": "negative"
+      },
+      {
+        "text": "CEO resigns effective immediately after accounting probe",
+        "torch_label": "neutral",
+        "onnx_label": "neutral"
+      },
+      {
+        "text": "Analysts discuss whether tech may outperform next year",
+        "torch_label": "positive",
+        "onnx_label": "positive"
+      },
+      {
+        "text": "Drugmaker wins FDA approval for new cancer treatment",
+        "torch_label": "positive",
+        "onnx_label": "positive"
+      }
+    ],
+    "actionability": [
+      {
+        "text": "Company cuts full-year guidance amid weak demand",
+        "torch_label": "actionable",
+        "onnx_label": "actionable"
+      },
+      {
+        "text": "CEO resigns effective immediately after accounting probe",
+        "torch_label": "actionable",
+        "onnx_label": "actionable"
+      },
+      {
+        "text": "Analysts discuss whether tech may outperform next year",
+        "torch_label": "non_actionable",
+        "onnx_label": "non_actionable"
+      },
+      {
+        "text": "Drugmaker wins FDA approval for new cancer treatment",
+        "torch_label": "actionable",
+        "onnx_label": "actionable"
+      }
+    ],
+    "event_type": [
+      {
+        "text": "Company cuts full-year guidance amid weak demand",
+        "torch_label": "earnings_guidance",
+        "onnx_label": "earnings_guidance"
+      },
+      {
+        "text": "CEO resigns effective immediately after accounting probe",
+        "torch_label": "management_change",
+        "onnx_label": "management_change"
+      },
+      {
+        "text": "Analysts discuss whether tech may outperform next year",
+        "torch_label": "earnings_guidance",
+        "onnx_label": "earnings_guidance"
+      },
+      {
+        "text": "Drugmaker wins FDA approval for new cancer treatment",
+        "torch_label": "legal_regulatory",
+        "onnx_label": "legal_regulatory"
+      }
+    ]
+  },
+  "max_length": 128,
+  "opset": 17
+}
