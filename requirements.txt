@@ -4,3 +4,4 @@ safetensors
 onnx
 onnxruntime
 numpy
+torch

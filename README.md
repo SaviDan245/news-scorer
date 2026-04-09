@@ -1,76 +1,95 @@
 # News-to-Trade Relevance Scorer
 
-Transformer-based decision-support demo for financial text triage.
+Демо-сервис для анализа коротких финансовых текстов: заголовков новостей, твитов, кратких news items и фрагментов пресс-релизов.
 
-HF Spaces target:
-- primary backend: `ONNX Runtime`
-- public entrypoint: `Gradio`
-- local/dev fallback: `FastAPI + PyTorch`
-
-The app returns:
-- sentiment: `bullish` / `bearish` / `neutral`
-- actionability: `actionable` / `non_actionable`
-- event type
-- heuristic trading horizon
+Приложение предсказывает:
+- `sentiment`: `bullish` / `bearish` / `neutral`
+- `actionability`: `actionable` / `non_actionable`
+- `event_type`: тип события
+- `horizon`: эвристический торговый горизонт
 - confidence scores
-- a short rationale
+- короткое текстовое объяснение
 
-## Runtime Layout
+## Как это устроено
 
-The service uses three separately trained FinBERT-based classifiers:
-- PyTorch source artifacts in [models/artifacts](/Users/savidan/JupyterLabProjects/ysda/ml-2/hws/hw4/news_scorer/models/artifacts)
-- compact ONNX export in `models/onnx_artifacts`
+Сервис использует три отдельно обученные модели на базе FinBERT:
+- sentiment
+- actionability
+- event type
 
-`horizon` is currently derived heuristically from `actionability + event_type`.
+Для деплоя используется `ONNX Runtime`.  
+Поле `horizon` сейчас вычисляется эвристически из `actionability + event_type`.
 
-## ONNX Export
+## Проведённые эксперименты
 
-Export final serving artifacts:
+В рамках проекта были рассмотрены и обучены несколько отдельных моделей на базе FinBERT:
+- **sentiment model**: классификация `bullish / bearish / neutral`
+- **actionability model**: классификация `actionable / non_actionable`
+- **event type model**: многоклассовая классификация типа события
 
-```bash
-cd hws/hw4/news_scorer
-/opt/homebrew/anaconda3/envs/ml_env/bin/python serving/export_onnx.py
-```
+Для `event_type` также тестировалась двухэтапная схема обучения:
+- сначала на расширенном weak-labeled train set,
+- затем дополнительная доадаптация только на `FiQA` тренировочной выборке
 
-This creates:
+Для `actionability` дополнительно рассматривались:
+- обычный full fine-tuning
+- более мягкий fine-tuning с уменьшенным learning rate
+- вариант с заморозкой encoder
+- PEFT (LoRA) с разными гиперпараметрами
+
+На практике лучшими оказались:
+- отдельная sentiment-модель на Financial PhraseBank
+- отдельная actionability-модель на вручную проверенном и расширенном датасете
+- отдельная event type модель с дообучением только на `FiQA` после внешнего weak-labeled pretrain'а
+
+## Работа с данными
+
+Для обучения использовалась комбинированная data strategy:
+- **Financial PhraseBank** для задачи sentiment
+- **FiQA** как основное ядро для actionability и event type
+- внешний набор финансовых headline'ов для weak labeling и расширения train set
+
+Что было сделано с данными:
+- нормализация текстов и схемы полей
+- ручная разметка и проверка части actionability-меток
+- weak labeling по keyword/rule engine
+- объединение ручных, weak и dataset-based labels
+- выделение отдельных train / val / test split'ов
+- построение отдельного `FiQA-only` train split для второй стадии обучения event type модели
+
+В текущем demo-runtime используются только финальные ONNX-артефакты, а не training checkpoints.
+
+## Структура runtime-артефактов
+
+В рантайме используются только ONNX-артефакты:
 - `models/onnx_artifacts/tokenizer`
 - `models/onnx_artifacts/sentiment`
 - `models/onnx_artifacts/actionability`
 - `models/onnx_artifacts/event_type`
 
-Only these compact ONNX artifacts should be used for HF Spaces runtime.
-
-## Local Run
+## Локальный запуск
 
 ```bash
-cd hws/hw4/news_scorer
-/opt/homebrew/anaconda3/envs/ml_env/bin/python app.py
+streamlit run app.py
 ```
 
-The Gradio app uses the ONNX backend by default.
+## Зависимости
 
-## API
+Основные зависимости:
+- `streamlit`
+- `transformers`
+- `onnx`
+- `onnxruntime`
+- `numpy`
 
-There is also a small FastAPI entrypoint in [serving/api.py](/Users/savidan/JupyterLabProjects/ysda/ml-2/hws/hw4/news_scorer/serving/api.py).
+Полный список указан в `requirements.txt`.
 
-Local run:
+## Ограничения
 
-```bash
-cd hws/hw4/news_scorer/serving
-/opt/homebrew/anaconda3/envs/ml_env/bin/python api.py
-```
+- Это исследовательский/демо-проект, а не инвестиционный продукт.
+- Сервис лучше всего работает на коротких англоязычных финансовых текстах.
+- `horizon` не является рыночной ground-truth меткой и задаётся эвристически.
 
-By default the local API uses the PyTorch backend. You can override it with:
+## Дисклеймер
 
-```bash
-export NEWS_SCORER_BACKEND=onnx
-```
-
-The local PyTorch path assumes `torch` is available in your local environment. It is not required for the HF Spaces ONNX runtime path.
-
-## Notes
-
-- This is a research/demo project, not an investment recommendation system.
-- The service is optimized for short English financial text such as headlines, tweets, short news items, and press release excerpts.
-- For HF Spaces, the main entrypoint is [app.py](/Users/savidan/JupyterLabProjects/ysda/ml-2/hws/hw4/news_scorer/app.py).
-- For deployment, do not include training checkpoint folders; only final ONNX artifacts are needed at runtime.
+Приложение не является инвестиционной рекомендацией и не должно использоваться как готовая торговая система.

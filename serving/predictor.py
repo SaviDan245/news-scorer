@@ -11,7 +11,7 @@ from transformers import AutoTokenizer
 SENTIMENT_MAP = {
     'positive': 'bullish',
     'negative': 'bearish',
-    'neutral': 'neutral',
+    'neutral': 'neutral'
 }
 
 HORIZON_MAP = {
@@ -20,7 +20,7 @@ HORIZON_MAP = {
     'management_change': 'intraday',
     'legal_regulatory': 'intraday',
     'financing_restructuring': 'intraday',
-    'other_actionable': 'mft',
+    'other_actionable': 'mft'
 }
 
 EVENT_TYPE_DISPLAY = {
@@ -29,7 +29,7 @@ EVENT_TYPE_DISPLAY = {
     'management_change': 'management change',
     'legal_regulatory': 'legal / regulatory',
     'financing_restructuring': 'financing / restructuring',
-    'other_actionable': 'other actionable',
+    'other_actionable': 'other actionable'
 }
 
 def normalize_id2label(id2label: dict[int | str, str]) -> dict[int, str]:
@@ -69,37 +69,25 @@ class OnnxBackend(BaseBackend):
         self.sessions = {
             'sentiment': self._load_session(sentiment_dir),
             'actionability': self._load_session(actionability_dir),
-            'event_type': self._load_session(event_type_dir),
+            'event_type': self._load_session(event_type_dir)
         }
         self.id2label = {
             'sentiment': normalize_id2label(json.loads((sentiment_dir / 'config.json').read_text(encoding='utf-8'))['id2label']),
             'actionability': normalize_id2label(json.loads((actionability_dir / 'config.json').read_text(encoding='utf-8'))['id2label']),
             'event_type': normalize_id2label(json.loads((event_type_dir / 'config.json').read_text(encoding='utf-8'))['id2label']),
         }
-        self.input_names = {
-            name: [input_meta.name for input_meta in session.get_inputs()]
-            for name, session in self.sessions.items()
-        }
+        self.input_names = {name: [input_meta.name for input_meta in session.get_inputs()] for name, session in self.sessions.items()}
 
     def _load_session(self, artifact_dir: Path):
         providers = ['CPUExecutionProvider']
         return self._ort.InferenceSession(str(artifact_dir / 'model.onnx'), providers=providers)
 
     def encode(self, text: str) -> dict[str, np.ndarray]:
-        encoded = self.tokenizer(
-            text,
-            truncation=True,
-            max_length=self.max_length,
-            return_tensors='np',
-        )
+        encoded = self.tokenizer(text, truncation=True, max_length=self.max_length, return_tensors='np')
         return {key: value.astype(np.int64) for key, value in encoded.items()}
 
-    def predict_head(
-        self,
-        task_name: str,
-        encoded: dict[str, np.ndarray],
-        label_map: dict[str, str] | None = None,
-    ) -> dict[str, object]:
+    def predict_head(self, task_name: str, encoded: dict[str, np.ndarray],
+                     label_map: dict[str, str] | None = None) -> dict[str, object]:
         session = self.sessions[task_name]
         id2label = self.id2label[task_name]
         feed = {
@@ -120,11 +108,8 @@ def softmax_np(logits: np.ndarray) -> np.ndarray:
     return exp_logits / exp_logits.sum()
 
 
-def build_prediction_payload(
-    probs: np.ndarray,
-    id2label: dict[int, str],
-    label_map: dict[str, str] | None = None,
-) -> dict[str, object]:
+def build_prediction_payload(probs: np.ndarray, id2label: dict[int, str],
+                             label_map: dict[str, str] | None = None) -> dict[str, object]:
     label_probs = {
         id2label[index]: float(probs[index])
         for index in range(len(id2label))
@@ -134,10 +119,7 @@ def build_prediction_payload(
     label = label_map.get(raw_label, raw_label) if label_map else raw_label
 
     if label_map:
-        mapped_probs = {
-            label_map.get(raw_key, raw_key): score
-            for raw_key, score in label_probs.items()
-        }
+        mapped_probs = {label_map.get(raw_key, raw_key): score for raw_key, score in label_probs.items()}
     else:
         mapped_probs = label_probs
 
@@ -145,15 +127,11 @@ def build_prediction_payload(
         'label': label,
         'confidence': float(probs[best_index]),
         'probs': mapped_probs,
-        'raw_label': raw_label,
+        'raw_label': raw_label
     }
 
 class NewsScorerPredictor:
-    def __init__(
-        self,
-        onnx_root: Path | None = None,
-        max_length: int = 128,
-    ) -> None:
+    def __init__(self, onnx_root: Path | None = None, max_length: int = 128) -> None:
         project_dir = Path(__file__).resolve().parent.parent
         onnx_artifacts_dir = (onnx_root or project_dir / 'models' / 'onnx_artifacts').resolve()
 
@@ -165,14 +143,15 @@ class NewsScorerPredictor:
             'tokenizer': str(self.tokenizer_dir),
             'sentiment': str((onnx_artifacts_dir / 'sentiment').resolve()),
             'actionability': str((onnx_artifacts_dir / 'actionability').resolve()),
-            'event_type': str((onnx_artifacts_dir / 'event_type').resolve()),
+            'event_type': str((onnx_artifacts_dir / 'event_type').resolve())
         }
+
         self.backend = OnnxBackend(
             sentiment_dir=(onnx_artifacts_dir / 'sentiment').resolve(),
             actionability_dir=(onnx_artifacts_dir / 'actionability').resolve(),
             event_type_dir=(onnx_artifacts_dir / 'event_type').resolve(),
             tokenizer_dir=self.tokenizer_dir,
-            max_length=max_length,
+            max_length=max_length
         )
 
         self.device = self.backend.device_name
@@ -184,13 +163,8 @@ class NewsScorerPredictor:
             return 'intraday'
         return HORIZON_MAP.get(event_type_label, 'intraday')
 
-    def _build_rationale(
-        self,
-        sentiment_label: str,
-        actionability_label: str,
-        event_type_label: str | None,
-        horizon_label: str,
-    ) -> str:
+    def _build_rationale(self, sentiment_label: str, actionability_label: str,
+                         event_type_label: str | None, horizon_label: str) -> str:
         if actionability_label == 'non_actionable':
             return (
                 'The text looks more like commentary or background information than a fresh tradeable event, '
@@ -216,34 +190,22 @@ class NewsScorerPredictor:
         started_at = time.perf_counter()
         encoded = self.backend.encode(text)
 
-        sentiment = self.backend.predict_head(
-            task_name='sentiment',
-            encoded=encoded,
-            label_map=SENTIMENT_MAP,
-        )
-        actionability = self.backend.predict_head(
-            task_name='actionability',
-            encoded=encoded,
-        )
+        sentiment = self.backend.predict_head(task_name='sentiment', encoded=encoded,
+                                              label_map=SENTIMENT_MAP)
+        actionability = self.backend.predict_head(task_name='actionability', encoded=encoded)
 
         event_type: dict[str, object] | None = None
         if actionability['label'] == 'actionable':
-            event_type = self.backend.predict_head(
-                task_name='event_type',
-                encoded=encoded,
-            )
+            event_type = self.backend.predict_head(task_name='event_type', encoded=encoded)
 
         latency_ms = (time.perf_counter() - started_at) * 1000.0
-        horizon = self._infer_horizon(
-            actionability_label=str(actionability['label']),
-            event_type_label=None if event_type is None else str(event_type['label']),
+        horizon = self._infer_horizon(actionability_label=str(actionability['label']),
+                                      event_type_label=None if event_type is None else str(event_type['label'])
         )
-        rationale = self._build_rationale(
-            sentiment_label=str(sentiment['label']),
-            actionability_label=str(actionability['label']),
-            event_type_label=None if event_type is None else str(event_type['label']),
-            horizon_label=horizon,
-        )
+        rationale = self._build_rationale(sentiment_label=str(sentiment['label']),
+                                          actionability_label=str(actionability['label']),
+                                          event_type_label=None if event_type is None else str(event_type['label']),
+                                          horizon_label=horizon)
 
         return {
             'text': text,
@@ -257,7 +219,7 @@ class NewsScorerPredictor:
                 'device': self.backend.device_name,
                 'latency_ms': round(latency_ms, 2),
                 'max_length': self.max_length,
-            },
+            }
         }
 
     def predict_for_ui(self, text: str) -> dict[str, str]:
@@ -276,7 +238,7 @@ class NewsScorerPredictor:
             ),
             'horizon': str(result['horizon']),
             'rationale': str(result['rationale']),
-            'raw_json': json.dumps(result, indent=2, ensure_ascii=False),
+            'raw_json': json.dumps(result, indent=2, ensure_ascii=False)
         }
 
 
