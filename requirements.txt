@@ -1,8 +1,6 @@
+streamlit
 transformers
-gradio
-fastapi
-uvicorn
 safetensors
 onnx
 onnxruntime
-optimum
+numpy

@@ -1,14 +1,3 @@
----
-title: News-to-Trade Relevance Scorer
-emoji: 📈
-colorFrom: blue
-colorTo: gray
-sdk: gradio
-sdk_version: 5.24.0
-app_file: app.py
-pinned: false
----
-
 # News-to-Trade Relevance Scorer
 
 Transformer-based decision-support demo for financial text triage.

@@ -1,8 +1,6 @@
-from __future__ import annotations
+import json
 
-from functools import lru_cache
-
-import gradio as gr
+import streamlit as st
 
 from serving.predictor import NewsScorerPredictor
 
@@ -15,87 +13,80 @@ EXAMPLES = [
 ]
 
 
-@lru_cache(maxsize=1)
+@st.cache_resource
 def get_predictor() -> NewsScorerPredictor:
-    return NewsScorerPredictor(backend="onnx")
+    return NewsScorerPredictor()
 
 
-def run_inference(text: str) -> tuple[str, str, str, str, str, str]:
+def apply_example() -> None:
+    selected_example = st.session_state.get("selected_example")
+    if selected_example and selected_example != "Custom input":
+        st.session_state["input_text"] = selected_example
+
+
+st.set_page_config(
+    page_title="News-to-Trade Relevance Scorer",
+    page_icon="📈",
+    layout="wide",
+)
+
+st.title("News-to-Trade Relevance Scorer")
+st.caption(
+    "Compact ONNX-powered financial NLP demo for sentiment, actionability, event type, and heuristic trading horizon."
+)
+st.info("This is a decision-support demo, not investment advice.")
+
+st.sidebar.header("Examples")
+st.sidebar.selectbox(
+    "Load example",
+    options=["Custom input", *EXAMPLES],
+    key="selected_example",
+    on_change=apply_example,
+)
+
+text = st.text_area(
+    "Financial text",
+    key="input_text",
+    height=140,
+    placeholder="Paste a headline, tweet, short news item, or press release excerpt...",
+)
+
+score_clicked = st.button("Score", type="primary", use_container_width=True)
+
+if score_clicked:
     try:
-        result = get_predictor().predict_for_ui(text)
+        result = get_predictor().predict(text)
     except ValueError as error:
-        message = str(error)
-        return message, message, message, message, message, "{}"
+        st.error(str(error))
+    except Exception as error:
+        st.exception(error)
+    else:
+        col1, col2, col3, col4 = st.columns(4)
 
-    return (
-        result["sentiment"],
-        result["actionability"],
-        result["event_type"],
-        result["horizon"],
-        result["rationale"],
-        result["raw_json"],
-    )
+        with col1:
+            st.metric("Sentiment", result["sentiment"]["label"])
+            st.caption(f"Confidence: {result['sentiment']['confidence']:.1%}")
 
+        with col2:
+            st.metric("Actionability", result["actionability"]["label"])
+            st.caption(f"Confidence: {result['actionability']['confidence']:.1%}")
 
-with gr.Blocks(title="News-to-Trade Relevance Scorer") as demo:
-    gr.Markdown(
-        """
-        # News-to-Trade Relevance Scorer
-        Compact ONNX-powered financial NLP demo for:
-        - sentiment: bullish / bearish / neutral
-        - actionability: actionable / non_actionable
-        - event type
-        - heuristic trading horizon
+        with col3:
+            event_type = (
+                "not_applicable"
+                if result["event_type"] is None
+                else result["event_type"]["label"]
+            )
+            st.metric("Event Type", event_type)
+            if result["event_type"] is not None:
+                st.caption(f"Confidence: {result['event_type']['confidence']:.1%}")
 
-        This is a decision-support demo, not investment advice.
-        """
-    )
+        with col4:
+            st.metric("Trading Horizon", result["horizon"])
+            st.caption(f"Backend: {result['meta']['backend']}")
 
-    text_input = gr.Textbox(
-        label="Financial text",
-        lines=4,
-        placeholder="Paste a headline, tweet, short news item, or press release excerpt...",
-    )
-    submit_btn = gr.Button("Score")
+        st.subheader("Rationale")
+        st.write(result["rationale"])
 
-    with gr.Row():
-        sentiment_output = gr.Textbox(label="Sentiment")
-        actionability_output = gr.Textbox(label="Actionability")
-
-    with gr.Row():
-        event_type_output = gr.Textbox(label="Event Type")
-        horizon_output = gr.Textbox(label="Trading Horizon")
-
-    rationale_output = gr.Textbox(label="Rationale", lines=3)
-    raw_json_output = gr.Code(label="Raw JSON", language="json")
-
-    gr.Examples(examples=EXAMPLES, inputs=text_input)
-
-    submit_btn.click(
-        fn=run_inference,
-        inputs=text_input,
-        outputs=[
-            sentiment_output,
-            actionability_output,
-            event_type_output,
-            horizon_output,
-            rationale_output,
-            raw_json_output,
-        ],
-    )
-    text_input.submit(
-        fn=run_inference,
-        inputs=text_input,
-        outputs=[
-            sentiment_output,
-            actionability_output,
-            event_type_output,
-            horizon_output,
-            rationale_output,
-            raw_json_output,
-        ],
-    )
-
-
-if __name__ == "__main__":
-    demo.launch()
+        st.subheader("Raw JSON")
+        st.code(json.dumps(result, indent=2, ensure_ascii=False), language="json")
