@@ -9,7 +9,7 @@ EXAMPLES = [
     'Company cuts full-year guidance amid weak demand',
     'CEO resigns effective immediately after accounting probe',
     'Analysts discuss whether tech may outperform next year',
-    'Drugmaker wins FDA approval for new cancer treatment',
+    'Drugmaker wins FDA approval for new cancer treatment'
 ]
 
 
@@ -31,8 +31,7 @@ st.caption('Compact ONNX-powered financial NLP demo for sentiment, actionability
 st.info('This is a decision-support demo, not investment advice.')
 
 st.sidebar.header('Examples')
-st.sidebar.selectbox('Load example', options=['Custom input', *EXAMPLES],
-                     key='selected_example', on_change=apply_example)
+st.sidebar.selectbox('Load example', options=['Custom input', *EXAMPLES], key='selected_example', on_change=apply_example)
 
 text = st.text_area('Financial text', key='input_text', height=140,
                     placeholder='Paste a headline, tweet, short news item, or press release excerpt...')

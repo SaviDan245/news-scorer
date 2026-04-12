@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import onnxruntime as ort
 from transformers import AutoTokenizer
 
 
@@ -59,8 +60,6 @@ class BaseBackend:
 class OnnxBackend(BaseBackend):
     def __init__(self, sentiment_dir: Path, actionability_dir: Path, event_type_dir: Path,
                  tokenizer_dir: Path, max_length: int) -> None:
-        import onnxruntime as ort
-
         super().__init__(tokenizer_dir=tokenizer_dir, max_length=max_length)
 
         self._ort = ort
@@ -74,7 +73,7 @@ class OnnxBackend(BaseBackend):
         self.id2label = {
             'sentiment': normalize_id2label(json.loads((sentiment_dir / 'config.json').read_text(encoding='utf-8'))['id2label']),
             'actionability': normalize_id2label(json.loads((actionability_dir / 'config.json').read_text(encoding='utf-8'))['id2label']),
-            'event_type': normalize_id2label(json.loads((event_type_dir / 'config.json').read_text(encoding='utf-8'))['id2label']),
+            'event_type': normalize_id2label(json.loads((event_type_dir / 'config.json').read_text(encoding='utf-8'))['id2label'])
         }
         self.input_names = {name: [input_meta.name for input_meta in session.get_inputs()] for name, session in self.sessions.items()}
 
@@ -90,11 +89,7 @@ class OnnxBackend(BaseBackend):
                      label_map: dict[str, str] | None = None) -> dict[str, object]:
         session = self.sessions[task_name]
         id2label = self.id2label[task_name]
-        feed = {
-            name: encoded[name]
-            for name in self.input_names[task_name]
-            if name in encoded
-        }
+        feed = {name: encoded[name] for name in self.input_names[task_name] if name in encoded}
         logits = session.run(None, feed)[0]
         logits = np.asarray(logits)[0]
         probs = softmax_np(logits)
@@ -110,10 +105,7 @@ def softmax_np(logits: np.ndarray) -> np.ndarray:
 
 def build_prediction_payload(probs: np.ndarray, id2label: dict[int, str],
                              label_map: dict[str, str] | None = None) -> dict[str, object]:
-    label_probs = {
-        id2label[index]: float(probs[index])
-        for index in range(len(id2label))
-    }
+    label_probs = {id2label[index]: float(probs[index]) for index in range(len(id2label))}
     best_index = int(np.argmax(probs))
     raw_label = id2label[best_index]
     label = label_map.get(raw_label, raw_label) if label_map else raw_label
@@ -200,8 +192,7 @@ class NewsScorerPredictor:
 
         latency_ms = (time.perf_counter() - started_at) * 1000.0
         horizon = self._infer_horizon(actionability_label=str(actionability['label']),
-                                      event_type_label=None if event_type is None else str(event_type['label'])
-        )
+                                      event_type_label=None if event_type is None else str(event_type['label']))
         rationale = self._build_rationale(sentiment_label=str(sentiment['label']),
                                           actionability_label=str(actionability['label']),
                                           event_type_label=None if event_type is None else str(event_type['label']),
@@ -229,12 +220,12 @@ class NewsScorerPredictor:
         event_type = result['event_type']
 
         return {
-            'sentiment': f"{sentiment['label']} ({format_confidence(sentiment['confidence'])})",
-            'actionability': f"{actionability['label']} ({format_confidence(actionability['confidence'])})",
+            'sentiment': f'{sentiment['label']} ({format_confidence(sentiment['confidence'])})',
+            'actionability': f'{actionability['label']} ({format_confidence(actionability['confidence'])})',
             'event_type': (
                 'not_applicable'
                 if event_type is None
-                else f"{event_type['label']} ({format_confidence(event_type['confidence'])})"
+                else f'{event_type['label']} ({format_confidence(event_type['confidence'])})'
             ),
             'horizon': str(result['horizon']),
             'rationale': str(result['rationale']),
